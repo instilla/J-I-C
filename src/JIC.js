@@ -53,67 +53,56 @@ var jic = {
          * @param {String} file_input_name The name of the input that the server will receive with the file
          * @param {String} filename The name of the file that will be sent to the server
          * @param {function} successCallback The callback to trigger when the upload is succesful.
+         * @param {Object} (OPTIONAL) array of other data that must be sent to the server.
          * @param {function} (OPTIONAL) errorCallback The callback to trigger when the upload failed.
-	     * @param {function} (OPTIONAL) duringCallback The callback called to be notified about the image's upload progress.
-	     * @param {Object} (OPTIONAL) customHeaders An object representing key-value  properties to inject to the request header.
+         * @param {function} (OPTIONAL) duringCallback The callback called to be notified about the image's upload progress.
+         * @param {Object} (OPTIONAL) customHeaders An object representing key-value  properties to inject to the request header.
          */
 
-        upload: function(compressed_img_obj, upload_url, file_input_name, filename, successCallback, errorCallback, duringCallback, customHeaders){
+        upload: function(compressed_img_obj, upload_url, file_input_name, filename, successCallback, parameters, errorCallback, duringCallback, customHeaders){
 
-            //ADD sendAsBinary compatibilty to older browsers
-            if (XMLHttpRequest.prototype.sendAsBinary === undefined) {
-                XMLHttpRequest.prototype.sendAsBinary = function(string) {
-                    var bytes = Array.prototype.map.call(string, function(c) {
-                        return c.charCodeAt(0) & 0xff;
-                    });
-                    this.send(new Uint8Array(bytes).buffer);
-                };
+            var formData = new FormData();
+            formData.append( 'file', compressed_img_obj );
+            if (parameters && typeof parameters === "object") {
+                for (var parametersKey in parameters) {
+                    formData.append( parametersKey, parameters[parametersKey] );
+                }
             }
-
-            var type = "image/jpeg";
-            if(filename.substr(-4).toLowerCase()==".png"){
-                type = "image/png";
-            }
-
-            var data = compressed_img_obj.src;
-            data = data.replace('data:' + type + ';base64,', '');
             
             var xhr = new XMLHttpRequest();
             xhr.open('POST', upload_url, true);
-            var boundary = 'someboundary';
 
-            xhr.setRequestHeader('Content-Type', 'multipart/form-data; boundary=' + boundary);
-		
-		// Set custom request headers if customHeaders parameter is provided
-		if (customHeaders && typeof customHeaders === "object") {
-			for (var headerKey in customHeaders){
-				xhr.setRequestHeader(headerKey, customHeaders[headerKey]);
-			}
-		}
-		
-		// If a duringCallback function is set as a parameter, call that to notify about the upload progress
-		if (duringCallback && duringCallback instanceof Function) {
-			xhr.upload.onprogress = function (evt) {
-				if (evt.lengthComputable) {  
-					duringCallback ((evt.loaded / evt.total)*100);  
-				}
-			};
-		}
-		
-            xhr.sendAsBinary(['--' + boundary, 'Content-Disposition: form-data; name="' + file_input_name + '"; filename="' + filename + '"', 'Content-Type: ' + type, '', atob(data), '--' + boundary + '--'].join('\r\n'));
+            xhr.setRequestHeader('Content-Type', 'multipart/form-data');
+        
+            /* Set custom request headers if customHeaders parameter is provided */
+            if (customHeaders && typeof customHeaders === "object") {
+                for (var headerKey in customHeaders){
+                    xhr.setRequestHeader(headerKey, customHeaders[headerKey]);
+                }
+            }
+            
+            /* If a duringCallback function is set as a parameter, call that to notify about the upload progress */
+            if (duringCallback && duringCallback instanceof Function) {
+                xhr.upload.onprogress = function (evt) {
+                    if (evt.lengthComputable) {  
+                        duringCallback ((evt.loaded / evt.total)*100);  
+                    }
+                };
+            }
+            
+            xhr.send(formData);
             
             xhr.onreadystatechange = function() {
-			if (this.readyState == 4){
-				if (this.status == 200) {
-					successCallback(this.responseText);
-				}else if (this.status >= 400) {
-					if (errorCallback &&  errorCallback instanceof Function) {
-						errorCallback(this.responseText);
-					}
-				}
-			}
+                if (this.readyState == 4){
+                    if (this.status == 200) {
+                        successCallback(this.responseText);
+                    }else if (this.status >= 400) {
+                        if (errorCallback &&  errorCallback instanceof Function) {
+                            errorCallback(this.responseText);
+                        }
+                    }
+                }
             };
-
 
         }
 };
